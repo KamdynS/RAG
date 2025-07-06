@@ -47,9 +47,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=development
       - CORS_ORIGINS=["http://localhost:3000", "http://frontend:3000"]
-      - PINECONE_API_KEY=${PINECONE_API_KEY}
-      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
-      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT}
+      - VECTOR_DB_TYPE=chroma
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8001
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - MAX_FILE_SIZE=52428800
@@ -62,6 +62,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      chroma:
         condition: service_healthy
     volumes:
       - ./backend:/app
@@ -90,6 +92,24 @@ services:
       - /app/node_modules
       - /app/.next
 
+  # ChromaDB Vector Database
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: rag-chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8001
+      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
+    ports:
+      - "8001:8001"
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Supabase Local Development (Optional - for full Supabase features)
   supabase:
     image: supabase/supabase:latest
@@ -113,25 +133,41 @@ services:
     profiles:
       - supabase
 
-  # ChromaDB Local Vector Database (Optional - alternative to Pinecone)
-  chroma:
-    image: chromadb/chroma:latest
-    container_name: rag-chroma
+  # Backend with Pinecone (Optional - for hosted vector database)
+  backend-pinecone:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag-backend-pinecone
     environment:
-      - CHROMA_SERVER_HOST=0.0.0.0
-      - CHROMA_SERVER_HTTP_PORT=8001
-      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
+      - DATABASE_URL=postgresql://rag_user:rag_password@postgres:5432/rag_complete
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=["http://localhost:3000", "http://frontend:3000"]
+      - VECTOR_DB_TYPE=pinecone
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - MAX_FILE_SIZE=52428800
+      - ALLOWED_FILE_TYPES=pdf,docx,pptx,txt,md
+      - LOG_LEVEL=info
+      - LOG_TO_FILE=true
     ports:
-      - "8001:8001"
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - chroma_data:/chroma/chroma
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/heartbeat"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     profiles:
-      - local-vector
+      - pinecone
 
 volumes:
   postgres_data:

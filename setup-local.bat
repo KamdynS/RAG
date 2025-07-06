@@ -28,11 +28,11 @@ REM Check if .env.local exists
 if not exist .env.local (
     echo 📝 Creating .env.local file...
     copy env.local.example .env.local >nul
-    echo ⚠️  IMPORTANT: Please edit .env.local and add your API keys:
+    echo ⚠️  IMPORTANT: Please edit .env.local and add your API key:
     echo    - OPENAI_API_KEY
-    echo    - PINECONE_API_KEY
-    echo    - PINECONE_INDEX_NAME
-    echo    - PINECONE_ENVIRONMENT
+    echo.
+    echo    ChromaDB vector database is included by default.
+    echo    No additional API keys needed for local development!
     echo.
     echo Opening .env.local for editing...
     
@@ -105,6 +105,7 @@ echo 🔧 Backend API: http://localhost:8000
 echo 📊 API Documentation: http://localhost:8000/docs
 echo 🗃️  Database: localhost:5432
 echo 🔴 Redis: localhost:6379
+echo 🎯 ChromaDB: http://localhost:8001
 echo 📝 Logs: ./logs folder
 echo.
 echo 📋 Useful commands:
@@ -114,8 +115,8 @@ echo   docker-compose logs -f frontend # View frontend logs
 echo   docker-compose down             # Stop all services
 echo   docker-compose up -d            # Start all services
 echo.
-echo 🔧 To run with Supabase local development:
-echo   docker-compose --profile supabase up -d
+echo 🔧 To run with Pinecone instead of ChromaDB:
+echo   docker-compose --profile pinecone up -d
 echo.
 echo Happy coding! 🚀
 pause 

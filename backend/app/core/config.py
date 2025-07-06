@@ -27,9 +27,17 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4-turbo-preview", description="OpenAI model")
     openai_embedding_model: str = Field(default="text-embedding-3-small", description="OpenAI embedding model")
     
-    # Pinecone Configuration
-    pinecone_api_key: str = Field(..., description="Pinecone API key")
-    pinecone_environment: str = Field(..., description="Pinecone environment")
+    # Vector Database Configuration
+    vector_db_type: str = Field(default="chroma", description="Vector database type (chroma or pinecone)")
+    
+    # ChromaDB Configuration (default)
+    chroma_host: str = Field(default="localhost", description="ChromaDB host")
+    chroma_port: int = Field(default=8001, description="ChromaDB port")
+    chroma_collection_name: str = Field(default="rag_documents", description="ChromaDB collection name")
+    
+    # Pinecone Configuration (optional)
+    pinecone_api_key: Optional[str] = Field(default=None, description="Pinecone API key")
+    pinecone_environment: Optional[str] = Field(default=None, description="Pinecone environment")
     pinecone_index_name: str = Field(default="rag-documents", description="Pinecone index name")
     
     # Document Processing
