@@ -54,6 +54,8 @@ services:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - MAX_FILE_SIZE=52428800
       - ALLOWED_FILE_TYPES=pdf,docx,pptx,txt,md
+      - LOG_LEVEL=info
+      - LOG_TO_FILE=true
     ports:
       - "8000:8000"
     depends_on:
@@ -64,6 +66,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Frontend
@@ -110,12 +113,36 @@ services:
     profiles:
       - supabase
 
+  # ChromaDB Local Vector Database (Optional - alternative to Pinecone)
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: rag-chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8001
+      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
+    ports:
+      - "8001:8001"
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - local-vector
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
   backend_uploads:
+    driver: local
+  backend_logs:
+    driver: local
+  chroma_data:
     driver: local
 
 networks:

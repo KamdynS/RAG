@@ -64,18 +64,29 @@ nano .env.local  # or use your preferred editor
 
 **Required API Keys in `.env.local`:**
 - `OPENAI_API_KEY` - Get from [OpenAI](https://platform.openai.com/api-keys)
-- `PINECONE_API_KEY` - Get from [Pinecone](https://pinecone.io)
-- `PINECONE_INDEX_NAME` - Name of your Pinecone index
-- `PINECONE_ENVIRONMENT` - Your Pinecone environment
+
+**Vector Database Options (choose one):**
+- **Pinecone (hosted)**: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_ENVIRONMENT`
+- **ChromaDB (local)**: Uncomment the ChromaDB variables in `.env.local`
 
 ### 3. Run the Application
 
 ```bash
 # Option 1: Use the setup script (recommended)
+# Linux/Mac:
 ./setup-local.sh
+
+# Windows:
+setup-local.bat
 
 # Option 2: Manual setup
 docker-compose up -d --build
+
+# Option 3: Run with local vector database (ChromaDB)
+docker-compose --profile local-vector up -d --build
+
+# Option 4: Run with Supabase local development
+docker-compose --profile supabase up -d --build
 ```
 
 ### 4. Access Your Application
@@ -85,6 +96,8 @@ docker-compose up -d --build
 - **API Documentation**: http://localhost:8000/docs
 - **Database**: localhost:5432
 - **Redis**: localhost:6379
+- **ChromaDB** (if using local vector): http://localhost:8001
+- **Logs**: Available in Docker containers and `logs/` directory
 
 ### 5. Development Commands
 
