@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15
+    container_name: rag-postgres
+    environment:
+      POSTGRES_DB: rag_complete
+      POSTGRES_USER: rag_user
+      POSTGRES_PASSWORD: rag_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag_user -d rag_complete"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and job queues
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag-backend
+    environment:
+      - DATABASE_URL=postgresql://rag_user:rag_password@postgres:5432/rag_complete
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=["http://localhost:3000", "http://frontend:3000"]
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - MAX_FILE_SIZE=52428800
+      - ALLOWED_FILE_TYPES=pdf,docx,pptx,txt,md
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend/rag_complete
+      dockerfile: Dockerfile
+    container_name: rag-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_APP_NAME=RAG Complete
+      - NEXT_PUBLIC_APP_VERSION=1.0.0
+      - NEXT_PUBLIC_ENVIRONMENT=development
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/rag_complete:/app
+      - /app/node_modules
+      - /app/.next
+
+  # Supabase Local Development (Optional - for full Supabase features)
+  supabase:
+    image: supabase/supabase:latest
+    container_name: rag-supabase
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=rag_complete
+      - POSTGRES_USER=rag_user
+      - POSTGRES_PASSWORD=rag_password
+      - POSTGRES_PORT=5432
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-change-in-production}
+      - SITE_URL=http://localhost:3000
+    ports:
+      - "54321:8000"  # API
+      - "54323:3000"  # Studio
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./supabase:/app/supabase
+    profiles:
+      - supabase
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_uploads:
+    driver: local
+
+networks:
+  default:
+    name: rag-network 

@@ -1,6 +1,6 @@
 # RAG Complete - Production RAG System
 
-A production-ready Retrieval-Augmented Generation (RAG) system built with modern technologies and deployed using Platform-as-a-Service (PaaS) providers for maximum scalability and ease of deployment.
+A production-ready Retrieval-Augmented Generation (RAG) system built with modern technologies. Deploy locally with Docker Compose or use Platform-as-a-Service (PaaS) providers for maximum scalability.
 
 ## 🏗️ Architecture
 
@@ -18,7 +18,16 @@ A production-ready Retrieval-Augmented Generation (RAG) system built with modern
 - **Vector storage** with Pinecone for semantic search
 - **Redis caching** for improved performance
 
-### Infrastructure (Fully PaaS)
+### Infrastructure Options
+
+#### 🐳 Local Development (Docker)
+- **Docker Compose** for orchestrated local development
+- **PostgreSQL** for relational data
+- **Redis** for caching and job queues
+- **Persistent volumes** for data persistence
+- **Hot reload** for rapid development
+
+#### ☁️ Hosted PaaS (Production)
 - **Vercel** - Frontend hosting and deployment
 - **Render** - Backend API hosting
 - **Supabase** - PostgreSQL database
@@ -28,14 +37,92 @@ A production-ready Retrieval-Augmented Generation (RAG) system built with modern
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ and npm/yarn
-- Python 3.9+
-- Git
+- **For Local Development**: Docker & Docker Compose
+- **For Hosted Deployment**: Node.js 18+, Python 3.9+, Git
+- **For Both**: OpenAI API Key, Pinecone API Key
+
+---
+
+## 🐳 Local Development with Docker
+
+### 1. Clone and Setup
+
+```bash
+git clone <your-repo-url>
+cd RAG_production
+```
+
+### 2. Environment Setup
+
+```bash
+# Copy the local environment template
+cp env.local.example .env.local
+
+# Edit .env.local with your API keys
+nano .env.local  # or use your preferred editor
+```
+
+**Required API Keys in `.env.local`:**
+- `OPENAI_API_KEY` - Get from [OpenAI](https://platform.openai.com/api-keys)
+- `PINECONE_API_KEY` - Get from [Pinecone](https://pinecone.io)
+- `PINECONE_INDEX_NAME` - Name of your Pinecone index
+- `PINECONE_ENVIRONMENT` - Your Pinecone environment
+
+### 3. Run the Application
+
+```bash
+# Option 1: Use the setup script (recommended)
+./setup-local.sh
+
+# Option 2: Manual setup
+docker-compose up -d --build
+```
+
+### 4. Access Your Application
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+- **Database**: localhost:5432
+- **Redis**: localhost:6379
+
+### 5. Development Commands
+
+```bash
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Rebuild and restart
+docker-compose up -d --build
+
+# Run with Supabase local development
+docker-compose --profile supabase up -d
+```
+
+### 6. Database Management
+
+```bash
+# Connect to PostgreSQL
+docker-compose exec postgres psql -U rag_user -d rag_complete
+
+# View database logs
+docker-compose logs postgres
+
+# Reset database (⚠️ This will delete all data)
+docker-compose down -v
+docker-compose up -d --build
+```
+
+---
+
+## ☁️ Hosted PaaS Deployment
 
 ### 1. Clone and Setup Repositories
 
 ```bash
-# Clone the main repository
 git clone <your-repo-url>
 cd RAG_production
 
@@ -48,409 +135,289 @@ cd ../../backend
 pip install -r requirements.txt
 ```
 
-### 2. Deploy Infrastructure Services
+### 2. Database Setup (Supabase)
 
-#### A. Database Setup (Supabase)
-
+#### Create Supabase Project
 1. Go to [Supabase](https://supabase.com) and create a new project
 2. Note down your project URL and anon key
-3. Run the database migrations:
 
-```sql
--- Create documents table
-CREATE TABLE documents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    filename VARCHAR(255) NOT NULL,
-    file_type VARCHAR(50) NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending',
-    size BIGINT NOT NULL,
-    chunks_count INTEGER DEFAULT 0,
-    group_id UUID REFERENCES document_groups(id),
-    tags TEXT[] DEFAULT '{}',
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+#### Run Database Migration
+```bash
+# Option 1: Using Supabase CLI (recommended)
+supabase init
+supabase db push
 
--- Create document groups table
-CREATE TABLE document_groups (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    color VARCHAR(7),
-    icon VARCHAR(50),
-    parent_id UUID REFERENCES document_groups(id),
-    document_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create document tags table
-CREATE TABLE document_tags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) UNIQUE NOT NULL,
-    color VARCHAR(7),
-    usage_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create document chunks table
-CREATE TABLE document_chunks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}',
-    embedding_id VARCHAR(255), -- Reference to Pinecone vector ID
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create chat sessions table
-CREATE TABLE chat_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create chat messages table
-CREATE TABLE chat_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL, -- 'user' or 'assistant'
-    content TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Add indexes for performance
-CREATE INDEX idx_documents_status ON documents(status);
-CREATE INDEX idx_documents_group_id ON documents(group_id);
-CREATE INDEX idx_documents_created_at ON documents(created_at);
-CREATE INDEX idx_document_chunks_document_id ON document_chunks(document_id);
-CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
-CREATE INDEX idx_chat_sessions_updated_at ON chat_sessions(updated_at);
+# Option 2: Manual SQL execution
+# Copy and run the SQL from: supabase/migrations/20240101000000_initial_schema.sql
 ```
 
-#### B. Vector Database Setup (Pinecone)
+### 3. Vector Database Setup (Pinecone)
 
 1. Go to [Pinecone](https://pinecone.io) and create an account
-2. Create a new index with the following settings:
+2. Create a new index:
    - **Name**: `rag-documents`
    - **Dimensions**: `1536` (for OpenAI embeddings)
    - **Metric**: `cosine`
-   - **Cloud Provider**: Choose your preferred region
-3. Note down your API key and index name
+3. Note down your API key and environment
 
-#### C. Redis Setup (Upstash)
+### 4. Redis Setup (Upstash)
 
-1. Go to [Upstash](https://upstash.com) and create an account
-2. Create a new Redis database
-3. Note down the Redis URL and token
+1. Go to [Upstash](https://upstash.com) and create a Redis database
+2. Note down the Redis URL
 
-#### D. Backend Deployment (Render)
+### 5. Backend Deployment (Render)
 
-1. Go to [Render](https://render.com) and create an account
-2. Create a new Web Service
-3. Connect your GitHub repository
-4. Configure the service:
+1. Go to [Render](https://render.com) and create a Web Service
+2. Connect your GitHub repository
+3. Configure the service:
    - **Build Command**: `cd backend && pip install -r requirements.txt`
    - **Start Command**: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
    - **Environment**: Python 3.9+
-5. Add environment variables (see Environment Variables section below)
-6. Deploy the service and note down the service URL
 
-#### E. Frontend Deployment (Vercel)
+4. Add environment variables from `env.hosted.example`:
+   ```bash
+   DATABASE_URL=postgresql://[user]:[password]@[host]:[port]/[database]
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-supabase-anon-key
+   PINECONE_API_KEY=your-pinecone-api-key
+   PINECONE_INDEX_NAME=rag-documents
+   PINECONE_ENVIRONMENT=your-pinecone-environment
+   REDIS_URL=redis://default:your-password@your-host:port
+   OPENAI_API_KEY=your-openai-api-key
+   ENVIRONMENT=production
+   SECRET_KEY=your-secret-key-for-jwt
+   CORS_ORIGINS=["https://your-frontend-domain.vercel.app"]
+   ```
 
-1. Go to [Vercel](https://vercel.com) and create an account
-2. Import your GitHub repository
-3. Configure the project:
-   - **Framework Preset**: Next.js
+### 6. Frontend Deployment (Vercel)
+
+1. Go to [Vercel](https://vercel.com) and import your repository
+2. Configure the project:
+   - **Framework**: Next.js
    - **Root Directory**: `frontend/rag_complete`
    - **Build Command**: `npm run build`
-   - **Output Directory**: `.next`
-4. Add environment variables (see Environment Variables section below)
-5. Deploy and note down the deployment URL
 
-## 🔧 Environment Variables
+3. Add environment variables:
+   ```bash
+   NEXT_PUBLIC_API_URL=https://your-backend-service.render.com
+   NEXT_PUBLIC_API_BASE_URL=https://your-backend-service.render.com/api
+   NEXT_PUBLIC_APP_NAME=RAG Complete
+   NEXT_PUBLIC_APP_VERSION=1.0.0
+   NEXT_PUBLIC_ENVIRONMENT=production
+   ```
 
-### Backend Environment Variables (Render)
-
-Create these environment variables in your Render service:
-
-```bash
-# Database
-DATABASE_URL=postgresql://[user]:[password]@[host]:[port]/[database]
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-supabase-anon-key
-
-# Vector Database
-PINECONE_API_KEY=your-pinecone-api-key
-PINECONE_INDEX_NAME=rag-documents
-PINECONE_ENVIRONMENT=your-pinecone-environment
-
-# Redis Cache
-REDIS_URL=redis://default:your-password@your-host:port
-
-# AI Services
-OPENAI_API_KEY=your-openai-api-key
-
-# Application Settings
-ENVIRONMENT=production
-SECRET_KEY=your-secret-key-for-jwt
-ALLOWED_ORIGINS=https://your-frontend-domain.vercel.app
-MAX_FILE_SIZE=52428800  # 50MB in bytes
-ALLOWED_FILE_TYPES=pdf,docx,pptx,txt,md
-
-# CORS Settings
-CORS_ORIGINS=["https://your-frontend-domain.vercel.app"]
-```
-
-### Frontend Environment Variables (Vercel)
-
-Create these environment variables in your Vercel project:
-
-```bash
-# Backend API
-NEXT_PUBLIC_API_URL=https://your-backend-service.render.com
-NEXT_PUBLIC_API_BASE_URL=https://your-backend-service.render.com/api
-
-# Application Settings
-NEXT_PUBLIC_APP_NAME=RAG Complete
-NEXT_PUBLIC_APP_VERSION=1.0.0
-NEXT_PUBLIC_ENVIRONMENT=production
-
-# Optional: Analytics
-NEXT_PUBLIC_ANALYTICS_ID=your-analytics-id
-```
-
-## 🛠️ Local Development
-
-### Backend Setup
-
-1. Create a virtual environment:
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Create `.env` file:
-```bash
-cp .env.example .env
-# Edit .env with your local configuration
-```
-
-4. Run the development server:
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Frontend Setup
-
-1. Install dependencies:
-```bash
-cd frontend/rag_complete
-npm install
-```
-
-2. Create `.env.local` file:
-```bash
-cp .env.example .env.local
-# Edit .env.local with your configuration
-```
-
-3. Run the development server:
-```bash
-npm run dev
-```
+---
 
 ## 📁 Project Structure
 
 ```
 RAG_production/
-├── backend/                 # FastAPI backend
+├── supabase/                   # Database migrations and config
+│   ├── config.toml            # Supabase CLI configuration
+│   ├── migrations/            # Database migration files
+│   └── .gitignore            # Supabase-specific ignores
+├── backend/                   # FastAPI backend
 │   ├── app/
-│   │   ├── api/            # API routes
-│   │   ├── models/         # Pydantic models
-│   │   ├── services/       # Business logic
-│   │   ├── utils/          # Utility functions
-│   │   └── main.py         # FastAPI application
-│   ├── requirements.txt    # Python dependencies
-│   └── .env.example       # Environment template
-├── frontend/               # Next.js frontend
+│   │   ├── api/              # API routes
+│   │   ├── models/           # Pydantic models
+│   │   ├── services/         # Business logic
+│   │   ├── utils/            # Utility functions
+│   │   └── main.py           # FastAPI application
+│   ├── Dockerfile            # Backend container config
+│   ├── requirements.txt      # Python dependencies
+│   └── config_template.env   # Backend env template
+├── frontend/                  # Next.js frontend
 │   └── rag_complete/
 │       ├── src/
-│       │   ├── app/        # App router pages
-│       │   ├── components/ # React components
-│       │   ├── lib/        # Utility functions
-│       │   └── types/      # TypeScript types
-│       ├── public/         # Static assets
-│       ├── package.json    # Node dependencies
-│       └── .env.example   # Environment template
-├── docs/                   # Documentation
-│   ├── API.md             # API documentation
-│   ├── DEPLOYMENT.md      # Deployment guide
-│   └── DOCUMENT_FILTERING.md # Feature documentation
-└── README.md              # This file
+│       │   ├── app/          # App router pages
+│       │   ├── components/   # React components
+│       │   ├── lib/          # Utility functions
+│       │   └── types/        # TypeScript types
+│       ├── Dockerfile        # Frontend container config
+│       ├── package.json      # Node dependencies
+│       └── next.config.js    # Next.js configuration
+├── docs/                      # Documentation
+├── docker-compose.yml         # Local development orchestration
+├── docker-compose.override.yml # Development overrides
+├── env.local.example         # Local development env template
+├── env.hosted.example        # Hosted deployment env template
+├── setup-local.sh           # Local setup script
+└── README.md                # This file
 ```
 
 ## 🔌 API Integration
 
-The frontend communicates with the backend through Next.js API routes that proxy requests to the Python backend. This provides:
+### Development API Endpoints
 
-- **Security**: API keys and sensitive data stay on the server
-- **CORS handling**: Simplified cross-origin requests
-- **Error handling**: Consistent error responses
-- **Caching**: Optional response caching for performance
-
-### Available API Endpoints
+When running locally, the backend is available at `http://localhost:8000`:
 
 #### Document Management
 - `POST /api/documents/upload` - Upload documents
 - `GET /api/documents` - List documents with filtering
 - `POST /api/documents/filter` - Advanced document filtering
 - `DELETE /api/documents/{id}` - Delete document
-- `POST /api/documents/bulk` - Bulk operations
-
-#### Document Groups
-- `GET /api/document-groups` - List groups
-- `POST /api/document-groups` - Create group
-- `PUT /api/document-groups/{id}` - Update group
-- `DELETE /api/document-groups/{id}` - Delete group
-
-#### Document Tags
-- `GET /api/document-tags` - List tags
-- `POST /api/document-tags` - Create tag
-- `GET /api/document-tags/popular` - Get popular tags
-- `GET /api/document-tags/search` - Search tags
 
 #### Chat & Search
 - `POST /api/chat` - Send chat message
 - `GET /api/chat/sessions` - List chat sessions
 - `POST /api/search` - Search documents
 
-## 🚦 Monitoring & Observability
+### Production API Integration
 
-### Health Checks
-- Backend: `https://your-backend.render.com/health`
-- Frontend: Built-in Vercel monitoring
-
-### Logging
-- **Backend**: Structured JSON logging with correlation IDs
-- **Frontend**: Client-side error tracking with Vercel Analytics
-- **Database**: Supabase built-in logging and metrics
-
-### Performance Monitoring
-- **Response Times**: Track API response times
-- **Search Quality**: Monitor search accuracy and relevance
-- **User Engagement**: Track feature usage and user behavior
-
-## 🔒 Security
-
-### Authentication & Authorization
-- JWT-based authentication for API access
-- Secure token storage in HTTP-only cookies
-- Role-based access control for multi-tenant scenarios
-
-### Data Protection
-- HTTPS everywhere with automatic SSL certificates
-- Environment-based configuration management
-- Secure secret management through platform providers
-
-### File Upload Security
-- File type validation and sanitization
-- Size limits and quota enforcement
-- Virus scanning for uploaded content
+The frontend communicates with the backend through Next.js API routes that proxy requests to the Python backend for security and CORS handling.
 
 ## 🧪 Testing
 
-### Backend Testing
+### Local Testing
 ```bash
-cd backend
-pytest tests/ -v --cov=app
+# Backend tests
+docker-compose exec backend pytest tests/ -v
+
+# Frontend tests
+docker-compose exec frontend npm test
+
+# Integration tests
+docker-compose exec backend pytest tests/integration/ -v
 ```
 
-### Frontend Testing
+### Hosted Testing
 ```bash
+# Backend tests
+cd backend
+pytest tests/ -v --cov=app
+
+# Frontend tests
 cd frontend/rag_complete
 npm run test
 npm run test:e2e
 ```
 
-### Integration Testing
-- API endpoint testing with realistic data
-- End-to-end workflow testing
-- Performance testing under load
+## 🚦 Monitoring & Observability
+
+### Local Development
+- **Logs**: `docker-compose logs -f`
+- **Health Checks**: Built into Docker containers
+- **Database**: Direct PostgreSQL access on localhost:5432
+
+### Production (Hosted)
+- **Backend**: Render built-in logging and metrics
+- **Frontend**: Vercel Analytics and monitoring
+- **Database**: Supabase built-in logging and metrics
+- **Health Checks**: `/health` endpoint on backend
+
+## 🔒 Security
+
+### Local Development
+- Default credentials for local services
+- No HTTPS required for local development
+- Open access for testing
+
+### Production (Hosted)
+- **HTTPS**: Automatic SSL certificates
+- **Environment Variables**: Secure secret management
+- **CORS**: Configured for production domains
+- **Authentication**: JWT-based API authentication
 
 ## 📊 Performance Optimization
 
-### Caching Strategy
-- **Redis**: API response caching and session management
-- **CDN**: Static asset delivery through Vercel's global CDN
-- **Database**: Query optimization and connection pooling
+### Local Development
+- **Hot Reload**: Automatic code reloading
+- **Volume Mounts**: Direct file system access
+- **Development Mode**: Optimized for fast iteration
 
-### Search Performance
-- **Vector Search**: Optimized Pinecone queries with metadata filtering
-- **Hybrid Search**: Balanced semantic and keyword search
-- **Result Caching**: Cache frequent search results
+### Production (Hosted)
+- **CDN**: Vercel global edge network
+- **Caching**: Redis and application-level caching
+- **Connection Pooling**: Optimized database connections
+- **Vector Search**: Pinecone optimized queries
 
 ## 🔄 Deployment Workflow
 
-### Automated Deployments
+### Local Development Workflow
+1. Make code changes
+2. Services automatically reload
+3. Test in browser
+4. Commit changes
+
+### Production Deployment Workflow
 1. **Frontend**: Auto-deploy from main branch to Vercel
 2. **Backend**: Auto-deploy from main branch to Render
 3. **Database**: Managed migrations through Supabase
 4. **Monitoring**: Automatic health checks and alerting
 
-### Release Process
-1. Feature development in feature branches
-2. Pull request review and testing
-3. Merge to main triggers automatic deployment
-4. Post-deployment verification and monitoring
-
 ## 🆘 Troubleshooting
 
-### Common Issues
+### Local Development Issues
 
 #### "Cannot connect to backend"
-- Check backend service status in Render dashboard
-- Verify CORS configuration
-- Confirm environment variables are set
+```bash
+# Check backend logs
+docker-compose logs backend
+
+# Restart backend service
+docker-compose restart backend
+
+# Check if backend is healthy
+curl http://localhost:8000/health
+```
 
 #### "Database connection failed"
-- Check Supabase project status
-- Verify database URL and credentials
-- Check connection limits and quotas
+```bash
+# Check PostgreSQL logs
+docker-compose logs postgres
 
-#### "Vector search not working"
-- Verify Pinecone API key and index name
-- Check index dimensions match embedding model
-- Confirm documents are properly embedded
+# Check if PostgreSQL is ready
+docker-compose exec postgres pg_isready -U rag_user -d rag_complete
 
-#### "File upload failing"
-- Check file size limits
-- Verify allowed file types
-- Confirm storage quotas
+# Reset database
+docker-compose down -v
+docker-compose up -d --build
+```
+
+#### "Services won't start"
+```bash
+# Check Docker system
+docker system df
+docker system prune  # Clean up space
+
+# Check Docker Compose
+docker-compose config  # Validate configuration
+docker-compose down && docker-compose up -d --build
+```
+
+### Production Issues
+
+#### "Backend deployment failed"
+- Check Render build logs
+- Verify environment variables
+- Check Python version compatibility
+
+#### "Frontend deployment failed"
+- Check Vercel build logs
+- Verify Next.js configuration
+- Check environment variables
+
+#### "Database migration failed"
+- Check Supabase dashboard
+- Verify database connection
+- Run migrations manually
 
 ### Getting Help
 
-1. Check the [documentation](./docs/) for detailed guides
-2. Review server logs in platform dashboards
-3. Check GitHub Issues for known problems
-4. Contact support through platform providers
+1. **Local Issues**: Check Docker logs and service health
+2. **Production Issues**: Check platform dashboards
+3. **Documentation**: Review [docs/](./docs/) folder
+4. **GitHub Issues**: Report bugs and feature requests
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+3. **Local Development**: Test with Docker Compose
+4. **Production Testing**: Deploy to staging environment
+5. Commit changes: `git commit -m 'Add amazing feature'`
+6. Push to branch: `git push origin feature/amazing-feature`
+7. Open a Pull Request
 
 ## 📄 License
 
@@ -458,12 +425,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- OpenAI for GPT and embedding models
-- Pinecone for vector database infrastructure
-- Supabase for database and authentication
-- Vercel and Render for hosting platforms
-- The open-source community for excellent tools and libraries
+- **Local Development**: Docker and Docker Compose communities
+- **Production Infrastructure**: Vercel, Render, Supabase, Pinecone, Upstash
+- **AI Services**: OpenAI for GPT and embedding models
+- **Open Source**: The amazing open-source community
 
 ---
 
-**Ready to deploy your RAG system?** Follow the setup instructions above and you'll have a production-ready system running in minutes!
+## 🎯 Next Steps
+
+### For Local Development
+1. Run `./setup-local.sh` to get started
+2. Edit `.env.local` with your API keys
+3. Access your app at http://localhost:3000
+
+### For Production Deployment
+1. Follow the PaaS deployment guide above
+2. Set up monitoring and alerting
+3. Configure your custom domain
+
+**Ready to build your RAG system?** Choose your deployment method and start building! 🚀

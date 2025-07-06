@@ -1,0 +1,17 @@
+# Supabase
+.branches
+.temp
+.env
+.env.local
+.env.example
+.vscode
+.idea
+.DS_Store
+*.log
+*.tmp
+*.temp
+
+# Local development files
+.supabase/
+volumes/
+seed.sql 

@@ -1,0 +1,44 @@
+# Docker Compose Override for Development
+# This file is automatically used by Docker Compose for development overrides
+
+version: '3.8'
+
+services:
+  backend:
+    # Enable hot reload for development
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    # Override command for development with reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+
+  frontend:
+    # Enable hot reload for development
+    volumes:
+      - ./frontend/rag_complete:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+    # Override command for development
+    command: npm run dev
+
+  postgres:
+    # Add development-specific configuration
+    environment:
+      - POSTGRES_LOG_STATEMENT=all
+      - POSTGRES_LOG_MIN_DURATION_STATEMENT=0
+    # Expose additional ports for debugging
+    ports:
+      - "5432:5432"
+
+  redis:
+    # Add development-specific configuration
+    command: redis-server --appendonly yes --loglevel verbose
+
+volumes:
+  backend_uploads:
+    driver: local 
